@@ -12,7 +12,6 @@ import (
 unit8对应byte int16对应short int64对应long
 类型别名的写法为：type TypeAlias = Type,例：
 type NewInt int 或者 type IntAlias = int
- */
 var (
 	a int
 	b string
@@ -22,6 +21,8 @@ var (
 		x int
 	  }
 )
+ */
+
 /**
 字符串：
 1.字符串取长度：使用len()可以用来后去切片、字符串、通道等的长度
@@ -204,6 +205,197 @@ onExit:
 					fmt.Println(v)
 			})
 		}
+2.使用匿名函数实现操作封装
+	var skillParam=flag.String("skill","","skill to perform")
+	func main(){
+		flag.Parse()
+		var skill = map[string]func(){
+			"fire": func(){
+				fmt.Println("chicken fire")
+			},
+			"run" : func(){
+				fmt.Println("soldier run")
+			},
+			"fly" : func(){
+				fmt.Println("angel fly")
+			}
+		}
+		if f,ok := skill[*skillPrama]: ok{
+			f()
+		} else {
+			fmt.Println("skill not found")
+		}
+	}
+运行：go rum main.go --skill=fly
+ */
+
+/*
+defer:
+1.使用defer延迟并发解锁
+var (
+	valueByKey = make(map[string]int)
+	valueByKeyGuard sync.Mutex
+)
+func readValue(key string)int{
+	//对共享资源加锁
+	valueByKeyGurad.Lock()
+	//释放共享资源
+	defer valueByKeyGuard.Unlock()
+	v := valueByKeyGuard[key]
+	return v
+}
+*/
+
+/**
+结构体：
+1.基本的实例化
+	var ins T
+	ins.属性key1=value1
+	ins.属性key2=value2
+	结构体成员变量的赋值方法与普通变量一致。
+1.创建指针类型的结构体：
+	ins := new(T)
+	T为类型，可以使结构体、整型、字符串等。
+	ins: T类型被实例化后保存到ins变量中，ins的类型为*T，属于指针
+2.取结构体的地址实例化
+	ins := &T{}
+	T表示结构体类型
+	ins为结构体的实例，类型为*T,是指针类型。
+使用键值对填充结构体
+	type People struct{
+		name string
+		child *People
+	}
+
+	relation := &People{
+		name: "爷爷",
+		child: &People{
+			name:"爸爸",
+			child: &People{
+				name :"我",
+			},
+		}
+	}
+多个值列表初始化结构体的例子
+type Adress struct{
+	Province string
+	City string
+	Zipcode int
+	PhoneNumber string
+}
+
+addr := Adress{
+	"四川",
+	"成都",
+	61000,
+	"0",
+}
+
+模拟构造函数
+type Cat struct{
+	Color string
+	Name string
+}
+
+func GetInstance(name string,color string) *Cat{
+	return &Cat{
+		Name:name,
+		Color:color
+	}
+}
+
+接收器：方法作用的目标
+func (接收器变量 接收器类型) 方法名(参数列表) (返回列表){ 函数体 }
+type Property struct{
+	value int
+}
+func (p *Property) SetValue(v int) {
+	p.value=v
+}
+func (p *Property) GetValue() int{
+	return p.value
+}
+
+ */
+
+/**
+接口：
+一个类型可以实现多个接口，多个类型可以实现相同的接口
+type Service interface{
+	Start()
+	Log(string)
+}
+type Logger struct{}
+func (g *Logger) Log(log string){}
+type GameService struct{}
+func (g *GameService) Start(){}
+ */
+
+/**
+包：
+  导入包后自定义引用的包名
+		customName "path/to/package"
+   如：
+		import (
+			renameLib "chapter08/importadd/mylib"
+			"fmt"
+		)
+	匿名导入包——只导入包但不使用包内类型和数值
+	import(
+		_ "path/to/package"
+	)
+ */
+
+/**
+通道
+通道发送数据的格式： 通道变量 <- 值
+chan := make(interface{})
+chan <- 0
+chan <- "hello"
+发送将持续阻塞直到数据被接收 data := <-chan
+通道的数据接收可以借用for range语句进行多个元素的接收操作
+for data:= range chan{
+
+}
+遍历的结果就是接收到的数据，数据类型就是通道的数据类型，通过for遍历获得的变量只有一个，即data.
+单向通道：
+	只能发送通道：var 通道实例 chan<- 元素类型
+	只能接收通道：var 通道实例 <-chan 元素类型
+带缓冲的通道：
+	缓冲通道在发送时无需等待接收方接收即可完成发送过程，并且不会发生阻塞，只有当存储空间满时才会发生阻塞。
+	如果缓冲通道中有数据，接收时将不会发生阻塞，知道通道中没有数据可读时，通道将会再度阻塞。
+	无缓冲通道保证的是收发过程同步。
+	通道实例 := make(chan 通道类型,缓冲大小)
+select 关键字：
+	可以同时响应多个通道的操作。select的每个case都会对应一个通道的收发过程。当收发完成时，就会触发case中
+响应的语句。多个操作在每次select中挑选一个进行相应。
+	case <-ch:   接收任意数据
+	case d:= <-ch 接收变量
+	case ch<- 100 发送数据
+ */
+/**
+互斥锁 sync.Mutex——保证同时只有一个goroutine可以访问共享资源
+读写互斥锁sync.RWMutex——在读比写多的环境下比互斥锁更高效，在读多写少的环境中
+优先使用。
+var (
+	count int
+	CountGuard sync.RWMutex
+)
+func GetCount int{
+	countGuard.RLock()
+	defer countGuard.RUnlock()
+	return count
+}
+sync.WatiGroup——保证在并发环境中完成指定数量的任务
+等待组的方法：
+(wg *WaitGroup)Add(delta int) 等待组的计数器+1
+(wg *WaitGroup)Done()         等待组的计数器-1
+(wg *WaitGroup)Wait()         当等待组计数器不等于0时阻塞直到变0
+ */
+
+/**
+反射：
+
  */
 
 
