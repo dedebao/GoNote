@@ -30,6 +30,19 @@ var (
 2.遍历字符串
  无汉语 theme := "hello World"   for i=0;i<len(theme);i++ {}
  有汉语 theme := "佳期 beautifual" for _,s:=range theme {}
+3.字符串是常量，可以通过数组下表访问，但不能通过下表进行修改
+4.字符串类型底层实现是一个二元的数据结构，一个是指针指向字节数组的起点，另一个是长度。
+	type string Struct{
+		str unsafe.Pointer //指向底层字节数组的指针
+		len int			//字节数组长度
+	}
+5.基于字符串创建的切片和原字符串指向相同的底层字符数组，一样不能修改，对字符串的切片
+操作返回的子串仍然是string,而非slice.
+6.字符串和切片的转换：字符串可以转换为字节数组，也可以转换为Unicode的字数组。
+	a := "hello,世界"
+	c:=[]rune(a)
+    b:=[]byte(a)
+7.通过“+”进行连接
  */
 
 /**
@@ -51,6 +64,7 @@ var (
    str := new (string)
    *str=""pengyu
 	fmt.Println(*str)
+
 
  */
 
@@ -110,6 +124,20 @@ func main(){
 		return true
 	})
 }
+不要直接修改map value内某个元素的值，如果想修改map的某个键值，则必须整体赋值。
+type User struct{
+	name string
+	age int
+}
+ma := make(map[int]User)
+andes := User{
+	name:"Tom",
+	age:18,
+}
+ma[1]=andes
+//ma[1].age=19  //Error,不能通过map引用直接修改
+andes.age=19
+ma[1]=andes //必须整体替换Value
  */
 
 /**
@@ -227,6 +255,13 @@ onExit:
 		}
 	}
 运行：go rum main.go --skill=fly
+3.函数中允许返回局部变量的地址：
+	Go编译器使用“栈逃逸”机制将局部变量的空间分配在堆上。如：
+	func sum(a,b  int) *int{
+		sum := a+b
+		return &sum  //允许，sum会分配在heap上
+	}
+
  */
 
 /*
@@ -244,6 +279,16 @@ func readValue(key string)int{
 	v := valueByKeyGuard[key]
 	return v
 }
+2.defer后面必须是函数或方法的调用，不能是语句。
+3.defer函数的实参是在注册时通过值拷贝的方式传递进去的，不是执行的时候才传进去的。
+4.defer语句必须先注册才能执行，如果defer位于return之后，则defer因为没有注册，不会执行
+5.主动调用os.Exit(int)退出进程时，defer将不再被执行(即使defer已经提前注册)
+6.在打开资源无报错后直接调用defer关闭资源，如：
+	src,err := os.Open(src)
+	if err != nil {
+		return
+	}
+	defer src.Close()
 */
 
 /**
@@ -275,6 +320,24 @@ func readValue(key string)int{
 				name :"我",
 			},
 		}
+	}
+
+示例2：
+	type Person struct{
+		Name string
+		Age int
+	}
+	type Student struct{
+		Person *Person
+		Number int
+	}
+	p := &Person{
+		Name:"Pengyu",
+		Age:12,
+	}
+	s := Student{
+		Person:p,
+		Number:110,
 	}
 多个值列表初始化结构体的例子
 type Adress struct{
@@ -395,7 +458,30 @@ sync.WatiGroup——保证在并发环境中完成指定数量的任务
 
 /**
 反射：
-
+	反射是指在程序运行期对程序本身进行访问和修改的能力。程序在编译时，变量被转换为内存地址，
+变量名不会被编译器写入到可执行部分。在程序运行时，程序无法获取自身的信息。支持反射的语言可以
+在程序编译期将变量的反射信息，如字段名称、类型信息、结构体信息等整合到可执行文件中，并给程序
+提供接口访问反射信息，这样就可以在程序运行期获取类型的反射信息，并且有能力修改它们。
+type dog struct{
+	LegCount int
+}
+valueOfDog := reflect.ValueOf(&dog{}) //获取dog实例地址的反射值对象
+valueOfDog = valueOfDog.Elem() //取出dog实例地址的元素
+vLegCount := valueOfDog.FieldByName("LegCount") //获取legCount字段的值
+vLegCount.SetInt(4)
+使用反射调用函数：
+func add(a,b int) int {
+	return a+b
+}
+func main(){
+	funcValue := reflect.ValueOf(add) //将函数包装为反射值对象
+	//构造函数参数，传入两个整型值
+	paramList := []reflect.Value{reflect.ValueOf(10),reflect.ValueOf(20)}
+	//反射调用函数
+	retList := funcValue.Call(paramList)
+	//获取第一个返回值，取整数值
+	fmt.Println(retList[0].Int())
+}
  */
 
 
