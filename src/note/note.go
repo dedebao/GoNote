@@ -280,6 +280,117 @@ onExit:
 	函数的多值返回时主调函数预先分配好空间来存放返回值，被调函数执行时将返回值复制到
 	该返回位置来实现的。
 
+5.无论接收者是什么类型，方法和函数的实参传递都是值拷贝。如果接收者是值类型，则传递的是值的副本；
+如果接收者是指针类型，则传递的是指针的副本。
+type Int int
+func (a Int) Max(b Int) Int{
+	if a>=b{
+		return a
+	}else{
+		return b
+	}
+}
+func (i *Int) Set(a Int){
+	*i = a
+}
+func (i Int) Print(){
+	fmt.Printf("value=%d\n",i)
+}
+func main(){
+	var a Int=10
+	var b Int=20
+	c := a.Max(b)
+	c.Print() //value=50
+	(&c).Print() //value=50,内部被编译器转换为c.Print()
+	a.Set(20) // 内部被编译器转化为(&a).Set(20)
+	a.Print() //value=30
+}
+总结：
+T类型的方法集是S
+*T类型的方法集是S和*S
+这里定义了一个新类型Int,新类型的底层类型是int,Int虽然不能继承int的方法，但底层类型支持的操作(
+算数运算和赋值运算)可以被上层类型继承。
+
+通过类型变量进行值调用和表达式调用，在这种情况下，使用值调用方式调用时编译器会自动转换，使用表达式
+调用方式调用时编译器不会进行转换，会进行严格方法集检查
+如：
+type Data struct{}
+func (Data) TestValue(){}
+func (*Data) TestPointer(){}
+//声明一个类型变量a
+var a Data= struct {}{}
+Data.TestValue(a)
+Data.TestValue(&a)
+Data.TestPointer(&a) //报错
+(*Data).TestPointer(&a)
+//值调用编译器会自动转换
+f := a.TestValue
+f()
+y := (&a).TestValue //编译器帮助转换为a.TestValue
+y()
+g := a.TestPointer //会转换为(&a).TestPointer
+g()
+x :=(&a).TestPointer
+x()
+
+Go语言组合方法集
+若类型S包含匿名字段T,则S的方法集包含T的方法集
+若类型S包含匿名字段*T,则S的方法集包含T和*T方法集
+不管类型S中嵌入的匿名字段是T还是*T,*S方法集总是包含T和*T方法集。
+例：
+type X struct{ a int }
+type Y struct{ X }
+type Z struct{ *X }
+func (x X) Get() int{ return x.a }
+func (x *X) Set(i int) { x.a=i }
+func main(){
+	x := X {a:1}
+	y := Y { X:x,}
+	println(y.Get())  //1
+	//此处编译器做了自动转换
+	y.Set(2)
+	println(y.Get()) //2
+	//为了不让编译器做自动转换，使用方法表达式调用方式
+	//Y内嵌字段X,所以type Y的方法集是Get,type *Y的方法是Set Get
+	(*Y).Set(&y,3)
+	//type Y的方法集合并没有Set方法，所以下一句编译不能通过
+	//Y.Set(y,3)
+	println(y.Get()) //3
+	z :=Z{
+		X:&x,
+	}
+	//按照嵌套字段的方法集的规则
+	//Z内嵌字段*X,因此type Z和type *Z方法集都包含类型X定义的方法Get和Set
+	//为了不让编译器做自动转换，仍然使用方法表达式调用方式
+	Z.Set(z,4)
+	println(z.Get())//4
+	(*Z).Set(&z,5)
+	println(z.Get())//5
+}
+/*
+并发：
+time.Sleep(5 * time.Second)
+//返回当前程序的goroutine数目
+runtime.NumGoroutine()
+go后面的函数的返回值会被忽略
+调度器不能保证多个goroutine的执行次序。
+没有父子goroutine的概念，所有的goroutine是平等地被调度和执行的
+Go程序在执行时会单独为main函数创建一个goroutine，遇到其他go关键字时再去创建其他的goroutine.
+Go没有暴露goroutine_id给用户，所以不能在一个goroutine里面显式地操作另一个goroutine，不过runtime包
+提供了一些函数访问和设置goroutine的相关信息。
+func GOMAXPROCS(n int) int 用来设置或查询可以并发执行的goroutine数目，n大于1表示设置GOMAXPROCS值，
+否则表示查询当前的GOMAXPROCS值。
+获取当前的GOMAXPROCS值=====runtime.GOMAXPROCS(0)
+设置GOMAXPROCS的值为2======runtime.GOMAXPROCS(2)
+func Goexit()结束当前goroutine的运行，Goexit在结束当前goroutine运行之前会调用当前goroutine已经注册
+的defer,Goexit不会产生panic，所以该goroutine defer里面的recover调用都返回nil。
+func Gosched()是放弃当前调度执行机会，将当前goroutine放到队列中等待下次被调度。
+
+ */
+
+
+
+
  */
 
 /*
@@ -466,11 +577,56 @@ for data:= range chan{
 	无缓冲通道保证的是收发过程同步。
 	通道实例 := make(chan 通道类型,缓冲大小)
 select 关键字：
+	当监听的通道没有状态是可读或可写的，select是阻塞的；只要监听的通道中有一个状态是可读或可写的，则select
+就不会阻塞，而是进入处理就绪通道的分支流程。如果监听的通道有多个可读或可写的状态，则select随机选取一个处理。
 	可以同时响应多个通道的操作。select的每个case都会对应一个通道的收发过程。当收发完成时，就会触发case中
 响应的语句。多个操作在每次select中挑选一个进行相应。
 	case <-ch:   接收任意数据
 	case d:= <-ch 接收变量
 	case ch<- 100 发送数据
+
+	1.向已经关闭的通道写数据会导致panic，建议由写入者关闭通道。
+	重复关闭通道会导致panic。
+	通道关闭后可以读数据。
+	func main(){
+		c := make (chan struct{})
+		ci := make (chan int,100)
+		go func (i chan struct{},j chan int){
+			for i:=0;i<10;i++{
+				ci <- i
+			}
+			close(ci)
+			//写通道
+			c <- struct{}{}
+		}(c,ci)
+		//读通道c,通过通道进行同步等待
+		<-c
+		//但通道ci还可以继续读取
+		for v:= range ci {
+			println(v)
+		}
+	}
+	2.阻塞：
+	向未初始化的通道写数据或读数据都会导致当前goroutine的永久阻塞
+	向缓冲区已满的通道写入数据会导致goroutine阻塞。
+	通道中没有数据，读取该通道会导致goroutine阻塞。
+	3.非阻塞：
+	读取已经关闭的通道不会引发阻塞，而是立即返回通道元素类型的零值，可以使用comma,ok语法判断通道是否已经关闭。
+
+	4.Go语言的future模式：
+future模式的基本工作原理：
+	使用chan作为函数参数
+	启动goroutine调用函数
+	通过chan传入参数
+	做其他可以并行处理的事情。
+	通过chan异步获取结果。
+	type query struct{
+		sql chan string //参数Channel
+		result chan string //结果channel
+	}
+	
+
+
  */
 /**
 互斥锁 sync.Mutex——保证同时只有一个goroutine可以访问共享资源
