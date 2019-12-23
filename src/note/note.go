@@ -367,6 +367,18 @@ func main(){
 	(*Z).Set(&z,5)
 	println(z.Get())//5
 }
+
+inject是Go语言依赖注入的实现，它实现了对结构(struct)和函数的依赖注入。
+
+传值还是传引用？
+值拷贝：
+(1)函数参数传递时使用的是值拷贝。
+(2)实例赋值给接口变量，接口对实例的引用是值拷贝。
+明明是值拷贝却修改了变量的内容，有以下两种情况：
+(1)直接传递的是指针。指针传递同样是值拷贝，但指针和指针副本的值指向的地址是一个地方，所以能修改实参值。
+(2)参数是复合数据类型，这些复合数据类型内部有指针类型的元素，此时参数的值拷贝并不影响指针的指向。
+Go复合类型中chan、map、slice、interface内部都是通过指针指向具体的数据，这些类型的变量在作为函数参数传递时，
+实际上相当于指针的副本。
 /*
 并发：
 time.Sleep(5 * time.Second)
@@ -385,6 +397,7 @@ func GOMAXPROCS(n int) int 用来设置或查询可以并发执行的goroutine�
 func Goexit()结束当前goroutine的运行，Goexit在结束当前goroutine运行之前会调用当前goroutine已经注册
 的defer,Goexit不会产生panic，所以该goroutine defer里面的recover调用都返回nil。
 func Gosched()是放弃当前调度执行机会，将当前goroutine放到队列中等待下次被调度。
+
 
  */
 
@@ -526,6 +539,26 @@ func (p *Property) GetValue() int{
 	return p.value
 }
 
+type Cat struct {
+	name string
+	Animal
+}
+
+func (cat Cat) String() string {
+	return fmt.Sprintf("%s (category: %s, name: %q)",
+		cat.scientificName, cat.Animal.AnimalCategory, cat.name)
+}
+func (cat *Cat) SetName(name string) {
+	cat.name = name
+}
+那么值方法和指针方法之间有什么不同点呢？
+（1）值方法的接收者是该方法所属的那个类型值的一个副本。我们在该方法内对该副本的修改一般都不会体现在原值上，除非这个类型本身是某个引用类型（比如切片或字典）的别名类型。而指针方法的接收者，是该方法所属的那个基本类型值的指针值的一个副本。我们在这样的方法内对该副本指向的值进行修改，却一定会体现在原值上。
+（2）一个自定义数据类型的方法集合中仅会包含它的所有值方法，而该类型的指针类型的方法集合却囊括了前者的所有方法，包括所有值方法和所有指针方法。
+严格来讲，我们在这样的基本类型的值上只能调用到它的值方法。但是，Go语言会适时地为我们进行自动地转译，使得我们在这样的值上也能调用到它的指针方法。
+比如，在Cat类型的变量cat之上，之所以我们可以通过cat.SetName("monster")修改猫的名字，是因为Go语言把它自动转译为了(&cat).SetName("monster")，即：先取cat的指针值，然后在该指针值上调用SetName方法。
+（3）在后边你会了解到，一个类型的方法集合中有哪些方法与它能实现哪些接口类型是息息相关的。如果一个基本类型和它的指针类型的方法集合是不同的，那么它们具体实现的接口类型的数量就也会有差异，除非这两个数量都是零。
+比如，一个指针类型实现了某某接口类型，但它的基本类型却不一定能够作为该接口的实现类型。
+
  */
 
 /**
@@ -554,6 +587,18 @@ func (g *GameService) Start(){}
 	import(
 		_ "path/to/package"
 	)
+	包的注意事项：
+(1)一个包可以有多个init函数，包加载会执行全部的init函数，但并不能保证执行顺序，所以不建议在一个包中放入多个
+init函数，将需要初始化的逻辑放到一个init函数里面。
+(2)包不能出现环形引用。比如包a引用了包b，包b引用了包c，如果包c又引用了包a,则编译不能通过。
+(3)包的重复引用是允许的。比如包a引用了包b和包c,包b和包c都引用了包d。这种场景相当于重复引用了d，这种情况是允许
+的，并且go编译器保证d的init函数只会执行一次。
+
+在执行main.go之前，Go引导程序会先对整个程序的包进行初始化。
+Go包的初始化有如下特点：
+(1)包初始化程序从main函数引用的包开始，逐级查找包的引用，直到找到没有引用其他包的包，最终生成一个包引用的有向无环图。
+(2)Go编译器会将有向无环图转换为一棵树，然后从树的叶子节点开始逐层向上对包进行初始化。
+(3)单个包的初始化过程，先初始化常量，然后是全局变量，最后执行包的init函数(如果有)。
  */
 
 /**
@@ -624,8 +669,29 @@ future模式的基本工作原理：
 		sql chan string //参数Channel
 		result chan string //结果channel
 	}
-	
-
+	//执行query
+	func execQuery(q query){
+		//启动线程
+		go func(){
+			//获取输入
+			sql := <-q.sql
+			//访问数据库
+			//输出结果通道
+			q.result <- "result from" +sql
+		}()
+	}
+	func main(){
+		//初始化Query
+		q :=query{make(chan string,1),make(chan string,1)}
+		go execQuery(q)//注意执行的时候无须准备参数
+		q.sql <- "select * from table"
+		//做其他事情，通过sleep描述
+		time.Sleep(1*time.Second)
+		//获取结果
+		fmt.Println(<-q.result)
+	}
+	//执行结果
+	result from select * from table
 
  */
 /**
@@ -673,6 +739,27 @@ func main(){
 	retList := funcValue.Call(paramList)
 	//获取第一个返回值，取整数值
 	fmt.Println(retList[0].Int())
+}
+ */
+
+/**
+ * 建议结构体自定义错误处理函数
+func (r *RabbitMQ) failOnErr(err error,message string){
+   if err != nil {
+	log.Fatalf(format:"%s:%s",message,err)
+	panic(fmt.Sprintf(format:"%s:%s",message,err))
+   }
+}
+
+调用示例：
+func NewRabbotMQSimple(queueName string) *RabbitMQ{
+   rabbitmq := NewRabbitMQ(queueName,exchange:"",key:"")
+   var err error
+   rabbitmq.conn,err=amqp.Dial(rabbitmq.Mqurl)
+   rabbitmq.failOnErr(err,message:"创建连接错误!")
+   rabbitmq.channel,err=rabbitmq.conn.Channel()
+   rabbitmq.failOnErr(err,message:"获取channel失败")
+   return rabbitmq
 }
  */
 
